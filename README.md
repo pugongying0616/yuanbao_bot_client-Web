@@ -37,16 +37,26 @@
   
 # 使用说明：
 1：安装termux终端模拟器软件，https://m.ddooo.com/softdown/244642.htm
+
 2：安装依赖：(打开软件后依次输入后回车)
-             pkg install python-pip
-             pip install requests
-             pip install websockets
-             pip install flask
+            
+ pkg install python-pip
+             
+ pip install requests
+            
+ pip install websockets
+            
+ pip install flask
+
 2：下载项目压缩包文件至存储目录
+
 3：修改龙虾秘钥：建议下载mt管理器
 https://mt2.cn/ ， 用软件打开文件夹下config.json文件，修改APP_KEY，APP_SECRET[如果没有的话可以点关联界面，然后把那两个app开头的复制到配置文件里对应的位置，然后直接运行文件(运行文件的方法见4和5)，再点击我已操作就行了]，DEFAULT_GROUP_CODE(默认派派号)，IMAGE_GROUP_CODE(中转派派号) ，点击保存。
+
 4：打开termux软件，cd到你的项目文件夹(例如：cd ~/storage/shared/XXX)
+
 5：输入python app.py，回车，即可运行程序
+
 6：浏览器输入http://127.0.0.1:5000     
 
 # 更新内容(v5.0)
