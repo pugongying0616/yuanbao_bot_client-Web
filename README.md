@@ -13,7 +13,7 @@
   templates/index.html（约 200KB 的纯
   HTML/JS）
   - 核心文件：app.py（约 177KB 主程序）、c
-  onfig.json（配置）、templates/index.html
+ onfig.json（配置）、templates/index.html
   （界面）、plugins/（插件目录，目前为空）
   - 依赖：requests、websockets、cos-python
   -sdk-v5、flask
