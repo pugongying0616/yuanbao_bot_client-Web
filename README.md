@@ -1,12 +1,12 @@
 # 元宝 Bot Web 控制台v5.0
 
-###声明：本项目基于anxi78 的yuanbao_bot_client修改，原项目采用GPL–3.0协议，原项目地址github.com/anxi78/yuanbao_bot_client，版权归原作者所有。本项目由opencode软件deepseek v4 flash模型编程。
+# 声明：本项目基于anxi78 的yuanbao_bot_client修改，原项目采用GPL–3.0协议，原项目地址github.com/anxi78/yuanbao_bot_client，版权归原作者所有。本项目由opencode软件deepseek v4 flash模型编程。
 
-#项目介绍：
+# 项目介绍：
 这是一个运行在 Termux（Android） 上的
   Python Web控制台项目，项目名为「龙虾控制台」
 
- #基本情况
+ # 基本情况
  - 语言/框架：Python +
   Flask，前端是单文件
   templates/index.html（约 200KB 的纯
