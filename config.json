@@ -1,7 +1,7 @@
 {
   "API_DOMAIN": "bot.yuanbao.tencent.com",
-  "APP_KEY": "",
-  "APP_SECRET": "",
+  "APP_KEY": "oaoY3YNKeJf2bKmp2C4teAK9CDRPbDzu",
+  "APP_SECRET": "MqyL1sNTZUF0QXEKAF1C544Mz9ewBxu5",
   "AUTO_REPLY_C2C_TEXT": "我是Bot!",
   "AUTO_REPLY_GROUP_TEXT": "@我干啥?",
   "AUTO_REPLY_RULES": [
