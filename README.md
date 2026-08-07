@@ -11,8 +11,7 @@
   Flask，前端是单文件
   templates/index.html（约 200KB 的纯
   HTML/JS）
-  - 核心文件：app.py（约 177KB 主程序）、c
-  onfig.json（配置）、templates/index.html
+  - 核心文件：app.py（约 177KB 主程序）、config.json（配置）、templates/index.html
   （界面）、plugins/（插件目录，目前为空）
   - 依赖：requests、websockets、cos-python
   -sdk-v5、flask
@@ -42,11 +41,7 @@
             
  pkg install python-pip
              
- pip install requests
-            
- pip install websockets
-            
- pip install flask
+ pip install -r requirements.txt 
 
 2：下载项目压缩包文件至存储目录
 
@@ -154,17 +149,29 @@ https://mt2.cn/ ， 用软件打开文件夹下config.json文件，修改APP_KEY
 
 
 ## 历史版本(v3.0)
+
 1:修复获取群成员列表异常问题
+
 2：增加输入框，简便@用户操作，@艾特用户不用填写英文冒号
+
 3：@用户后默认保留内容
+
 4：删除设置中“白名单群聊”“黑名单群聊”输入框
+
 5：@元宝开关，支持直接将目标群的消息转发到中转群，不@元宝，默认开启，可手动关闭
+
 6：打开网址或软件后自动连接龙虾bot，省去手动连接步骤
+
 7：刷屏默认间隔更改为0.1s
+
 8：心跳默认间隔更改为1s
+
 9：修复图片发送功能
+
 10:消息列表实时自动刷新，代理模式处理队列实时自动刷新
+
 11：优化脚本稳定性
+
 12：更新日期：2026年7月24日（由豆包办公模式和元宝超级元宝模式完成）
 
 ## 许可
