@@ -36,13 +36,17 @@
   logs/messages_YYYYMMDD.log/.txt
   
 # 使用说明：
-1：安装termux终端模拟器软件，https://m.ddooo.com/softdown/244642.htm
+1：安装termux终端模拟器软件，F-Droid（推荐）：https://f-droid.org/packages/com.termux/
+或者GitHub Releases：https://github.com/termux/termux-app/releases
 
 2：安装依赖：(打开软件后依次输入后回车)
-             pkg install python-pip
-             pip install requests
-             pip install websockets
-             pip install flask
+ pkg install python-pip
+            
+ pip install requests
+           
+ pip install websockets
+             
+ pip install flask
 
 2：下载项目压缩包文件至存储目录
 
