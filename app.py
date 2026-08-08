@@ -2414,6 +2414,7 @@ settings = {
     'recall_monitor_enabled': app_config.get('RECALL_MONITOR_ENABLED', True),  # 撤回监听开关（默认开启）
     'recall_notify_enabled': app_config.get('RECALL_NOTIFY_ENABLED', False),  # 撤回通知开关
     'recall_notify_target': app_config.get('RECALL_NOTIFY_TARGET', 'original'),  # 通知目标：original/relay
+    'recall_color': app_config.get('RECALL_COLOR', '#ff3b30'),  # 撤回消息颜色（红橙黄绿青蓝紫），默认红
 }
 
 settings_lock = threading.Lock()
@@ -2778,6 +2779,7 @@ def save_config():
             'RECALL_MONITOR_ENABLED': getattr(sender, 'recall_monitor_enabled', True),
             'RECALL_NOTIFY_ENABLED': getattr(sender, 'recall_notify_enabled', False),
             'RECALL_NOTIFY_TARGET': getattr(sender, 'recall_notify_target', 'original'),
+            'RECALL_COLOR': settings.get('recall_color', '#ff3b30'),
         })
         with open(config_path, 'w', encoding='utf-8') as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
@@ -3602,6 +3604,11 @@ def api_update_settings():
             target = str(data['recall_notify_target'])
             if target in ('original', 'relay'):
                 settings['recall_notify_target'] = sender.recall_notify_target = target
+        if 'recall_color' in data:
+            color = str(data['recall_color'])
+            # 仅接受合法的 #RGB / #RRGGBB 颜色值
+            if color.startswith('#') and len(color) in (4, 7) and all(c in '0123456789abcdefABCDEF#' for c in color):
+                settings['recall_color'] = color
 
     if _proxy_dirty:
         _proxy_config_version += 1
@@ -3695,6 +3702,11 @@ def api_save_config():
             if target in ('original', 'relay'):
                 with settings_lock:
                     settings['recall_notify_target'] = sender.recall_notify_target = target
+        if 'RECALL_COLOR' in new_config:
+            color = str(new_config['RECALL_COLOR'])
+            if color.startswith('#') and len(color) in (4, 7) and all(c in '0123456789abcdefABCDEF#' for c in color):
+                with settings_lock:
+                    settings['recall_color'] = color
 
         restart_keys = [k for k in RESTART_ONLY_KEYS if k in new_config]
         msg = 'config.json 已保存并生效'
