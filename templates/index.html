@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>元宝 Bot 控制台 v5.1</title>
+    <title>元宝 Bot 控制台 v5.2</title>
     <style>
         /* ═══════════════════════════════════════════
-           Apple Design System — 元宝 Bot Control v5.1
+           Apple Design System — 元宝 Bot Control v5.2
            ═══════════════════════════════════════════ */
 
         :root, [data-theme="light"] {
@@ -958,7 +958,7 @@
 <div class="app">
     <nav class="global-nav">
         <div class="nav-left">
-            <span class="nav-title">🤖 元宝 Bot v5.1</span>
+            <span class="nav-title">🤖 元宝 Bot v5.2</span>
         </div>
         <div class="nav-right">
             <button class="theme-toggle" id="themeToggle" title="切换外观" onclick="toggleTheme()">☀️</button>
@@ -1697,7 +1697,7 @@
 </div>
 
 <!-- ═══════════════════════════════════════════
-     JavaScript — 修复版 v5.1
+     JavaScript — 修复版 v5.2
      修复清单:
      1. r.status → r.ok（后端统一返回 ok 字段）
      2. API 路径全部对齐后端路由
@@ -1737,6 +1737,8 @@ const state = {
     memberAvatars: JSON.parse(localStorage.getItem('memberAvatars') || '{}'),  // {user_id: dataURL} 自定义头像
     theme_qq: localStorage.getItem('themeQQ') || 'qq-ai-enterprise',
     customTheme: JSON.parse(localStorage.getItem('customTheme') || 'null'),
+    _msgSig: '',
+    _msgGlobalIdx: [],
 };
 
 // ── 工具函数 ──
@@ -1888,6 +1890,9 @@ async function loadRecentMessages() {
         if (sig === state._msgSig) return;
         state._msgSig = sig;
         state.messages = r.messages;
+        // 记录每条消息在后端 msg_cache 中的全局索引（cache 尾部切片）
+        const total = r.total || state.messages.length;
+        state._msgGlobalIdx = state.messages.map((m, i) => total - state.messages.length + i);
         renderMessages();
         updateGroupChips();
     }
@@ -1901,16 +1906,21 @@ function renderMessages() {
     container.querySelectorAll('.message-entry').forEach(el => { if (el.dataset.msgKey) existing.set(el.dataset.msgKey, el); });
     const frag = document.createDocumentFragment();
     const newKeys = [];
+    const idxMap = new Map(); // 消息对象 -> 全局缓存索引
+    if (state._msgGlobalIdx) {
+        state.messages.forEach((m, i) => idxMap.set(m, state._msgGlobalIdx[i]));
+    }
     msgs.forEach((m, i) => {
         const key = m.sender_id + '|||' + m.time + '|||' + (m.content || '') + '|||' + (m.media_info ? m.media_info.type : 'text') + '|||' + (m.recalled ? '1' : '0');
         newKeys.push(key);
+        const gidx = idxMap.has(m) ? idxMap.get(m) : i; // 全局索引（后端 msg_cache 用）
         const isSelf = m.sender_id === state.botId;
         const isRecalled = !!m.recalled;
         let contentHtml = '';
         if (m.media_info && m.media_info.type === 'image' && m.media_info.image_urls && m.media_info.image_urls.length) {
             const extra = (m.content && m.content !== '[图片]') ? `<div>${escHtml(m.content)}</div>` : '';
             const imgs = m.media_info.image_urls.map(u =>
-                `<img src="${u}" class="msg-image" alt="[图片]" referrerpolicy="no-referrer" onclick="event.stopPropagation()">`
+                `<img src="${escAttr(u)}" class="msg-image" alt="[图片]" referrerpolicy="no-referrer" onclick="event.stopPropagation()">`
             ).join('');
             contentHtml = extra + `<div class="msg-images">${imgs}</div>`;
         } else {
@@ -1929,7 +1939,7 @@ function renderMessages() {
             // 更新序号和 onclick index（可能因增删消息而偏移）
             const idxEl = el.querySelector('.msg-index');
             if (idxEl) idxEl.textContent = '#' + (i + 1);
-            el.setAttribute('onclick', 'openReplyModal(' + i + ')');
+            el.setAttribute('onclick', 'openReplyModal(' + gidx + ')');
             // 更新 sender 和 time（极少变化但保持准确）
             const senderEl = el.querySelector('.msg-sender');
             if (senderEl) senderEl.textContent = m.sender_name || m.sender_id || '?';
@@ -1942,7 +1952,7 @@ function renderMessages() {
             const el = document.createElement('div');
             el.dataset.msgKey = key;
             el.className = 'message-entry ' + (isSelf ? 'self' : 'other') + (isRecalled ? ' recalled' : '');
-            el.setAttribute('onclick', 'openReplyModal(' + i + ')');
+            el.setAttribute('onclick', 'openReplyModal(' + gidx + ')');
             el.innerHTML = `<div class="msg-meta"><span class="msg-index">#${i+1}</span><span class="msg-sender">${escHtml(m.sender_name || m.sender_id || '?')}</span><span class="msg-time">${escHtml(m.time || '')}</span></div>${quoteHtml}<div>${contentHtml}</div>`;
             frag.appendChild(el);
         }
@@ -1956,6 +1966,9 @@ function escHtml(s) {
     d.textContent = s;
     return d.innerHTML;
 }
+function escAttr(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
 function filterMessages() {
     const q = $('searchMessage').value.toLowerCase();
     const items = document.querySelectorAll('.message-entry');
@@ -1963,7 +1976,10 @@ function filterMessages() {
 }
 function clearMessages() {
     state.messages = [];
+    state._msgSig = '';      // ← 修复：清空签名，否则后端无新消息时签名相同导致页面一直空
+    state._msgGlobalIdx = [];
     $('messageLog').innerHTML = '<div class="empty-state">已清空</div>';
+    updateGroupChips();
 }
 
 // ── 搜索/过滤防抖 ──
@@ -1985,13 +2001,13 @@ function updateGroupChips() {
         const name = state.groupNameCache[g];
         let label;
         if (!name) {
-            label = g; // 尚未获取到群名，只显示群号
+            label = escHtml(g); // 尚未获取到群名，只显示群号
         } else if (name === g) {
-            label = g; // 群名就是群号本身
+            label = escHtml(g); // 群名就是群号本身
         } else {
-            label = `${name}<small>(${g})</small>`; // 显示 群名(群号)
+            label = `${escHtml(name)}<small>(${escHtml(g)})</small>`; // 显示 群名(群号)
         }
-        html += `<span class="group-chip ${state.filterGroup === g ? 'active' : ''}" onclick="state.filterGroup='${g}';updateGroupChips();renderMessages()">${label} (${count})</span>`;
+        html += `<span class="group-chip ${state.filterGroup === g ? 'active' : ''}" onclick="state.filterGroup=${escAttr(JSON.stringify(g))};updateGroupChips();renderMessages()">${label} (${count})</span>`;
         // 异步获取群名（用独立 Set 防重复，不污染缓存）
         if (!state.groupNameCache[g]) {
             if (!state._fetchingGroups) state._fetchingGroups = new Set();
@@ -2073,7 +2089,8 @@ function setComposerMode(mode) {
     document.querySelectorAll('#composerModeChips .chip').forEach(c => {
         c.classList.toggle('active', c.dataset.mode === mode);
     });
-    const needsTarget = ['at', 'atspam', 'multi-at', 'dm', 'dmspam', 'latex', 'latex-spam'].includes(mode);
+    // ← 修复：LaTeX 模式不使用目标用户，不显示目标行
+    const needsTarget = ['at', 'atspam', 'multi-at', 'dm', 'dmspam'].includes(mode);
     $('composerTargetRow').style.display = needsTarget ? 'block' : 'none';
     $('composerCountRow').style.display = ['spam', 'atspam', 'dmspam', 'latex-spam'].includes(mode) ? 'block' : 'none';
     $('composerLatexControls').style.display = ['latex', 'latex-spam'].includes(mode) ? 'block' : 'none';
@@ -2120,11 +2137,17 @@ async function sendFromComposer() {
 // ── 回复模态框 ──
 let _replyModalIndex = -1;
 
-function openReplyModal(index) {
-    _replyModalIndex = index;
-    const m = state.messages[index];
+function openReplyModal(gidx) {
+    _replyModalIndex = gidx;
+    // 用全局缓存索引在后端 msg_cache 中的位置反查展示的消息；本地无匹配时用展示序号兜底
+    let m = null;
+    if (state._msgGlobalIdx) {
+        const localPos = state._msgGlobalIdx.indexOf(gidx);
+        if (localPos >= 0) m = state.messages[localPos];
+    }
+    if (!m) m = state.messages[gidx];
     if (!m) return;
-    $('modalMsgIndex').textContent = index + 1;
+    $('modalMsgIndex').textContent = gidx + 1;
     $('modalMsgSender').textContent = m.sender_name || m.sender_id || '?';
     $('modalMsgContent').textContent = m.content || '(无文本内容)';
     $('modalReplyText').value = '';
@@ -2141,18 +2164,19 @@ function closeReplyModal() {
 }
 
 async function sendModalReply() {
-    const idx = _replyModalIndex;
-    if (idx < 0 || idx >= state.messages.length) { showToast('消息序号无效', 'warning'); return; }
+    const gidx = _replyModalIndex;
     const text = $('modalReplyText').value.trim();
+    if (gidx < 0) { showToast('消息序号无效', 'warning'); return; }
     if (!text) { showToast('请输入回复内容', 'warning'); return; }
-    // 同步到高级面板的字段，保持兼容（目标面板无刷屏次数字段，跳过 replyCount）
-    $('replyIndex').value = idx;
-    $('replyText').value = text;
-    $('replyAtUser').value = $('modalAtUser').value.trim();
-    $('replyAtNick').value = $('modalAtNick').value.trim();
+    const count = parseInt($('modalReplyCount').value) || 1;
+    // 直接调用后端引用刷屏接口，传全局缓存索引 + 刷屏次数
+    const body = { index: gidx, text, count };
+    const at = $('modalAtUser').value.trim();
+    if (at) { body.at_user = at; body.at_nickname = $('modalAtNick').value.trim(); }
     closeReplyModal();
-    // 调用现有的发送函数
-    await sendReply();
+    const r = await api('/api/send-reply', { method: 'POST', body });
+    if (r && r.ok) showToast((r.message || '回复已发送'), 'success');
+    else showToast((r && r.message) || '回复失败', 'error');
 }
 
 // ── 发送消息 ──
@@ -2457,17 +2481,19 @@ function renderMembers() {
         const avatarHtml = customAvatar
             ? `<img src="${customAvatar}" alt="avatar">`
             : escapeHtml(initial);
-        const nick = (m.nick_name || '').replace(/'/g, "\\'");
-        return `<div class="member-item clickable" onclick="useMemberAsTarget('${m.user_id}','${nick}')">
+        const nick = (m.nick_name || '');
+        const uidAttr = escAttr(JSON.stringify(m.user_id));
+        const nickAttr = escAttr(JSON.stringify(nick));
+        return `<div class="member-item clickable" onclick="useMemberAsTarget(${uidAttr},${nickAttr})">
             <div class="member-avatar-wrap">${avatarHtml}</div>
             <div class="member-info">
                 <div class="member-name">${escapeHtml(m.nick_name || '(无名)')}${badges}</div>
-                <div class="member-id">${m.user_id}</div>
+                <div class="member-id">${escapeHtml(m.user_id)}</div>
             </div>
             <div class="member-actions">
-                <div class="badge-edit-btn" title="设置铭牌 / 认证 / 头像" onclick="event.stopPropagation();openBadgeEditor('${m.user_id}','${nick}')">⚙</div>
-                <button class="btn btn-outline btn-small" onclick="event.stopPropagation();copyText('${m.user_id}')">复制ID</button>
-                <button class="btn btn-primary btn-small" onclick="event.stopPropagation();useMemberAsTarget('${m.user_id}','${nick}')">使用</button>
+                <div class="badge-edit-btn" title="设置铭牌 / 认证 / 头像" onclick="event.stopPropagation();openBadgeEditor(${uidAttr},${nickAttr})">⚙</div>
+                <button class="btn btn-outline btn-small" onclick="event.stopPropagation();copyText(${uidAttr})">复制ID</button>
+                <button class="btn btn-primary btn-small" onclick="event.stopPropagation();useMemberAsTarget(${uidAttr},${nickAttr})">使用</button>
             </div>
         </div>`;
     }).join('');
@@ -2504,16 +2530,18 @@ function renderUsers() {
     if (!entries.length) { $('userList').innerHTML = '<div class="empty-state">暂无保存的用户</div>'; return; }
     $('userList').innerHTML = entries.map(([id, nick]) => {
         const initial = (nick || '?').charAt(0).toUpperCase();
+        const idAttr = escAttr(JSON.stringify(id));
+        const nickAttr = escAttr(JSON.stringify(nick || ''));
         return `<div class="user-item">
-            <div class="user-avatar">${initial}</div>
+            <div class="user-avatar">${escapeHtml(initial)}</div>
             <div class="user-info">
-                <div class="user-name">${nick || '(无名)'}</div>
-                <div class="user-id">${id}</div>
+                <div class="user-name">${escapeHtml(nick || '(无名)')}</div>
+                <div class="user-id">${escapeHtml(id)}</div>
             </div>
             <div class="user-actions">
-                <button class="btn btn-outline btn-small" onclick="copyText('${id}')">复制</button>
-                <button class="btn btn-primary btn-small" onclick="useMemberAsTarget('${id}','${(nick || '').replace(/'/g, "\\'")}')">使用</button>
-                <button class="btn btn-danger btn-small" onclick="removeUser('${id}')">删除</button>
+                <button class="btn btn-outline btn-small" onclick="copyText(${idAttr})">复制</button>
+                <button class="btn btn-primary btn-small" onclick="useMemberAsTarget(${idAttr},${nickAttr})">使用</button>
+                <button class="btn btn-danger btn-small" onclick="removeUser(${idAttr})">删除</button>
             </div>
         </div>`;
     }).join('');
@@ -2746,7 +2774,7 @@ function renderAutoReplyRules(rules) {
     }
     const sorted = rules.map((rule, i) => ({ rule, originalIndex: i })).sort((a, b) => (a.rule.priority ?? 999) - (b.rule.priority ?? 999));
     box.innerHTML = sorted.map(({ rule, originalIndex }) => {
-        const type = RULE_TYPE_LABELS[rule.match_type] || rule.match_type;
+        const type = escapeHtml(RULE_TYPE_LABELS[rule.match_type] || rule.match_type);
         const kw = rule.match_type === 'contains_any' ? (rule.patterns || []).join('、') : rule.pattern;
         return `<div class="rule-card ${rule.enabled === false ? 'disabled' : ''}">
             <div class="rule-main">
@@ -3306,10 +3334,10 @@ async function loadGroups() {
         state.groups = r.groups;
         const sel = $('groupSelector');
         sel.innerHTML = '<option value="">请选择群聊</option>' +
-            r.groups.map(g => `<option value="${g.group_code}">${g.group_code} (${g.message_count || 0}条)</option>`).join('');
+            r.groups.map(g => `<option value="${escAttr(g.group_code)}">${escHtml(g.group_code)} (${g.message_count || 0}条)</option>`).join('');
         const gl = $('groupsList');
         if (gl) {
-            gl.innerHTML = r.groups.map(g => `<div class="member-item"><div class="member-info"><div class="member-name">${g.group_code}</div><div class="member-id">${g.last_message || ''}</div></div></div>`).join('') || '<div class="empty-state">暂无</div>';
+            gl.innerHTML = r.groups.map(g => `<div class="member-item"><div class="member-info"><div class="member-name">${escHtml(g.group_code)}</div><div class="member-id">${escHtml(g.last_message || '')}</div></div></div>`).join('') || '<div class="empty-state">暂无</div>';
         }
     }
 }
@@ -3353,7 +3381,7 @@ async function clearLoggerToday() {
 async function loadLoggerFiles() {
     const r = await api('/api/msg-log/files');
     if (r && r.ok && r.files && r.files.length) {
-        $('loggerFilesList').innerHTML = r.files.map(f => `<div class="member-item"><div class="member-info"><div class="member-name">${f.name}</div><div class="member-id">${formatSize(f.size)} | ${f.mtime}</div></div><div class="member-actions"><button class="btn btn-outline btn-small" onclick="downloadLoggerFileByName('${f.name}')">下载</button></div></div>`).join('');
+        $('loggerFilesList').innerHTML = r.files.map(f => `<div class="member-item"><div class="member-info"><div class="member-name">${escHtml(f.name)}</div><div class="member-id">${formatSize(f.size)} | ${escHtml(f.mtime)}</div></div><div class="member-actions"><button class="btn btn-outline btn-small" onclick="downloadLoggerFileByName(${escAttr(JSON.stringify(f.name))})">下载</button></div></div>`).join('');
     } else {
         $('loggerFilesList').innerHTML = '<div class="empty-state">暂无历史文件</div>';
     }
@@ -3514,7 +3542,7 @@ function clearAllBadges() {
 }
 function exportMemberBadges() {
     const data = {
-        version: '5.1',
+        version: '5.2',
         exportedAt: new Date().toISOString(),
         badges: state.memberBadges,
         auth: state.memberAuth,
@@ -3577,7 +3605,7 @@ function refreshBadgeStats() {
     }
 }
 
-// ── QQ 桌面端调色盘主题（v5.1 移植） ──
+// ── QQ 桌面端调色盘主题 ──
 const QQ_THEMES = [
     { id: 'default', name: '默认蓝', swatch: 'linear-gradient(135deg,#1E90FF,#3FA3FF)' },
     { id: 'qq-blue', name: '经典蓝', swatch: 'linear-gradient(135deg,#1E90FF,#3FA3FF)' },
