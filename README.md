@@ -65,7 +65,7 @@
 
 ### 2️⃣ 下载项目
 
-下载并解压项目安装包到设备存储目录，或依次下载各项目文件到设备存储目录
+一键下载链接为curl -sSL https://yuanbao-bot-client-web.pages.dev/install.sh | bash，或依次下载各项目文件到设备存储目录
 
 ### 3️⃣ 安装依赖
 
