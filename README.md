@@ -9,7 +9,7 @@
 
 <p align="center">
   一个运行在 Termux（Android）上的 Python Web 控制台<br>
-  通过 WebSocket 操控「派派」聊天平台，提供完整的群管理 & 自动化能力
+  通过 WebSocket 操控「元宝派」聊天平台，提供完整的群管理 & 自动化能力
 </p>
 
 ---
@@ -66,15 +66,7 @@
 
 ### 2️⃣ 下载项目
 
-将本仓库克隆或下载压缩包到 Termux 存储目录。
-
-```bash
-# 方式一：git 克隆
-git clone https://github.com/你的用户名/你的仓库名.git
-cd 你的仓库名
-
-# 方式二：手动下载后解压到 ~/storage/shared/ 目录下
-```
+下载并解压项目安装包到设备存储目录，或依次下载各项目文件到设备存储目录
 
 ### 3️⃣ 安装依赖
 
