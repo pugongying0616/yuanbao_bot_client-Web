@@ -1,6 +1,6 @@
 ﻿#!/usr/bin/env python3
 """
-元宝 Bot Web 控制台 - v5.0
+元宝 Bot Web 控制台 - v5.2
 """
 import sys
 import os
@@ -2894,11 +2894,20 @@ def api_send_image():
                                               dir=os.path.dirname(os.path.abspath(__file__)))
             tmp.close()
             request.files['file'].save(tmp.name)
+            # ← 修复：读取 @ 目标字段（multipart 分支此前完全忽略）
+            at_u = (request.form.get('at_user') or '').strip()
+            at_n = (request.form.get('at_nickname') or '').strip()
             try:
                 ok = async_call(sender.send_image(tmp.name))
             finally:
                 try: os.unlink(tmp.name)
                 except Exception: pass
+            # 发送图片后再追加一条 @ 文字消息（带用户填写的 @ 目标）
+            if ok and at_u:
+                if at_u == 'all':
+                    sender.send_at_all()
+                else:
+                    sender.send_group('', at_user=at_u, at_nickname=at_n or at_u)
             return (jsonify({'ok': True, 'message': '图片发送成功'}) if ok
                     else jsonify({'ok': False, 'message': '图片发送失败'}), 400)
         else:
@@ -2925,11 +2934,20 @@ def api_send_file():
                                               dir=os.path.dirname(os.path.abspath(__file__)))
             tmp.close()
             request.files['file'].save(tmp.name)
+            # ← 修复：读取 @ 目标字段（multipart 分支此前完全忽略）
+            at_u = (request.form.get('at_user') or '').strip()
+            at_n = (request.form.get('at_nickname') or '').strip()
             try:
                 ok = async_call(sender.send_file(tmp.name))
             finally:
                 try: os.unlink(tmp.name)
                 except Exception: pass
+            # 发送文件后再追加一条 @ 文字消息（带用户填写的 @ 目标）
+            if ok and at_u:
+                if at_u == 'all':
+                    sender.send_at_all()
+                else:
+                    sender.send_group('', at_user=at_u, at_nickname=at_n or at_u)
             return (jsonify({'ok': True, 'message': '文件发送成功'}) if ok
                     else jsonify({'ok': False, 'message': '文件发送失败'}), 400)
         else:
@@ -3988,7 +4006,7 @@ if __name__ == '__main__':
 
     local_ip = get_local_ip()
     print("=" * 60)
-    print("  元宝 Bot Web 控制台 - v5.0")
+    print("  元宝 Bot Web 控制台 - v5.2")
     print("=" * 60)
     print(f"  本地:  http://127.0.0.1:{PORT}")
     print(f"  网络:  http://{local_ip}:{PORT}")
