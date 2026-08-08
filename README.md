@@ -33,14 +33,13 @@
 1. 安装 Termux 终端模拟器软件（推荐从官方源下载）：
    - F-Droid：<https://f-droid.org/packages/com.termux/>
    - GitHub Releases：<https://github.com/termux/termux-app/releases>
-2. 安装依赖（打开软件后依次输入后回车）：
+2.下载并解压项目压缩包文件至存储目录或依次下载各文件
+3. 安装依赖（打开软件后依次输入后回车）：
 
    ```bash
    pkg install python-pip
    pip install -r requirements.txt
    ```
-
-3. 下载项目压缩包文件至存储目录。
 4. 修改龙虾秘钥：建议下载 MT 管理器（<https://mt2.cn/>），用软件打开文件夹下 `config.json` 文件，修改：
    - `APP_KEY`、`APP_SECRET`（如果没有的话可以点关联界面，然后把那两个 app 开头的复制到配置文件里对应的位置，然后直接运行文件，再点击“我已操作”就行了）
    - `DEFAULT_GROUP_CODE`（默认派派号）
