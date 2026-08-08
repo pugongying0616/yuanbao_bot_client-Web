@@ -34,7 +34,7 @@
    - F-Droid：<https://f-droid.org/packages/com.termux/>
    - GitHub Releases：<https://github.com/termux/termux-app/releases>
 
-2.下载并解压项目压缩包文件至存储目录或依次下载各文件
+ 2.下载并解压项目压缩包文件至存储目录或依次下载各文件
 
 3. 安装依赖（打开软件后依次输入后回车）：
 
