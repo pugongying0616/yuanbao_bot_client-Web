@@ -1257,7 +1257,7 @@
                 <h3>🔄 引用回复</h3>
                 <div class="form-group">
                     <label class="form-label">消息序号</label>
-                    <input type="number" class="form-input" id="replyIndex" placeholder="消息序号" min="0">
+                    <input type="number" class="form-input" id="replyIndex" placeholder="消息序号（对应列表 #）" min="1">
                 </div>
                 <div class="form-group">
                     <label class="form-label">回复内容</label>
@@ -1939,7 +1939,7 @@ function renderMessages() {
             existing.delete(key);
             // 更新序号和 onclick index（可能因增删消息而偏移）
             const idxEl = el.querySelector('.msg-index');
-            if (idxEl) idxEl.textContent = '#' + (i + 1);
+            if (idxEl) idxEl.textContent = '#' + (gidx + 1);
             el.setAttribute('onclick', 'openReplyModal(' + gidx + ')');
             // 更新 sender 和 time（极少变化但保持准确）
             const senderEl = el.querySelector('.msg-sender');
@@ -1954,7 +1954,7 @@ function renderMessages() {
             el.dataset.msgKey = key;
             el.className = 'message-entry ' + (isSelf ? 'self' : 'other') + (isRecalled ? ' recalled' : '');
             el.setAttribute('onclick', 'openReplyModal(' + gidx + ')');
-            el.innerHTML = `<div class="msg-meta"><span class="msg-index">#${i+1}</span><span class="msg-sender">${escHtml(m.sender_name || m.sender_id || '?')}</span><span class="msg-time">${escHtml(m.time || '')}</span></div>${quoteHtml}<div>${contentHtml}</div>`;
+            el.innerHTML = `<div class="msg-meta"><span class="msg-index">#${gidx+1}</span><span class="msg-sender">${escHtml(m.sender_name || m.sender_id || '?')}</span><span class="msg-time">${escHtml(m.time || '')}</span></div>${quoteHtml}<div>${contentHtml}</div>`;
             frag.appendChild(el);
         }
     });
@@ -2573,7 +2573,7 @@ async function removeUser(id) {
 
 // ── 引用回复 ──
 async function sendReply() {
-    const idx = parseInt($('replyIndex').value);
+    const idx = parseInt($('replyIndex').value) - 1;
     const text = $('replyText').value.trim();
     if (isNaN(idx) || idx < 0) { showToast('请输入有效序号', 'warning'); return; }
     if (!text) { showToast('请输入回复内容', 'warning'); return; }
