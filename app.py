@@ -1,6 +1,6 @@
 ﻿#!/usr/bin/env python3
 """
-元宝 Bot Web 控制台 - v5.2
+元宝 Bot Web 控制台 - v5.4
 """
 import sys
 import os
@@ -750,9 +750,6 @@ class EnhancedSpamSender:
             self.heartbeat_task = asyncio.create_task(self._heartbeat())
             self.receive_task = asyncio.create_task(self._receive_loop())
             print(f"[连接] ✅ 已连接 (heartbeat={self.heartbeat_interval}s)")
-            # ── 插件 on_connect 事件（v4.4）──
-            if getattr(self, 'plugin_manager', None) is not None:
-                self.plugin_manager.fire_event('connect')
             return True
         except Exception as e:
             print(f"[连接] 失败: {e}")
@@ -777,9 +774,6 @@ class EnhancedSpamSender:
         重连过程中的内部清理调用 manual=False，保留 _should_reconnect 以便继续重连。
         """
         self.connected = False
-        # ── 插件 on_disconnect 事件（v4.4）──
-        if getattr(self, 'plugin_manager', None) is not None:
-            self.plugin_manager.fire_event('disconnect')
         if manual:
             self._should_reconnect = False
         for task in (self.heartbeat_task, self.receive_task, self._proxy_worker_task):
@@ -1332,10 +1326,6 @@ class EnhancedSpamSender:
         self._update_group_info(group_code, text_content)
         await self._process_auto_reply(push_json)
         self._maybe_enqueue_proxy(cache_entry, push_json, text_content, media_info, from_account)
-
-        # ── 插件 on_message 钩子（v4.4）──
-        if getattr(self, 'plugin_manager', None) is not None:
-            self.plugin_manager.dispatch_message(cache_entry)
 
         # 检测元宝图片回复（转发代理）
         self._maybe_handle_yuanbao_image_reply(push_json, text_content)
@@ -2426,296 +2416,6 @@ sender.recall_notify_enabled = settings.get('recall_notify_enabled', False)
 sender.recall_notify_target = settings.get('recall_notify_target', 'original')
 
 
-# ═══════════════════════════════════════════
-#  插件生态（v4.4 新增）
-#  — 扫描 plugins/ 目录，加载 plugin.py + plugin.json
-#  — 调用 register(ctx)，ctx 暴露发送/事件/页面/卡片/配置 API
-#  — 前端通过 /api/plugins 系列接口驱动统一格式 UI
-# ═══════════════════════════════════════════
-import subprocess
-import importlib.util
-import shutil
-
-PLUGINS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'plugins')
-os.makedirs(PLUGINS_DIR, exist_ok=True)
-
-
-class PluginContext:
-    """传递给插件 register(ctx) 的上下文对象，封装 Bot 全部可用能力"""
-
-    def __init__(self, manager, plugin_name):
-        self._m = manager
-        self.name = plugin_name
-        self.message_handlers = 0
-        self.pages = []
-        self.cards = []
-        self.routes = 0
-
-    @staticmethod
-    def _loop():
-        try:
-            return asyncio.get_event_loop()
-        except RuntimeError:
-            return None
-
-    # ── 发送类 API（异步执行，不阻塞调用方）──
-    def send_group(self, text, at_user=None, at_nickname=None, group_code=None):
-        lp = self._loop()
-        if lp and sender.connected:
-            lp.create_task(sender.send_group_message(
-                text, at_user=at_user, at_nickname=at_nickname, target_group=group_code))
-
-    def send_at_all(self, text, group_code=None):
-        lp = self._loop()
-        if lp and sender.connected:
-            lp.create_task(sender.send_group_message(
-                text, at_user='all', at_nickname='全体成员', target_group=group_code))
-
-    def send_sticker(self, name, text="", at_user=None, at_nickname=None, target_group=None):
-        lp = self._loop()
-        if lp and sender.connected:
-            lp.create_task(sender.send_sticker(
-                name, text=text, at_user=at_user, at_nickname=at_nickname, target_group=target_group))
-
-    def send_image(self, path):
-        lp = self._loop()
-        if lp and sender.connected:
-            lp.create_task(sender.send_image(path))
-
-    def send_file(self, path):
-        lp = self._loop()
-        if lp and sender.connected:
-            lp.create_task(sender.send_file(path))
-
-    def send_c2c(self, to_account, text):
-        lp = self._loop()
-        if lp and sender.connected:
-            lp.create_task(sender.send_c2c_message(to_account, text))
-
-    # ── 事件钩子 ──
-    def on_message(self, cb):
-        self.message_handlers += 1
-        self._m.on_message_callbacks.append((self.name, cb))
-
-    def on_connect(self, cb):
-        self._m.on_connect_callbacks.append((self.name, cb))
-
-    def on_disconnect(self, cb):
-        self._m.on_disconnect_callbacks.append((self.name, cb))
-
-    # ── 页面 / 卡片（元数据驱动，前端统一渲染）──
-    def register_blueprint(self, bp):
-        try:
-            app.register_blueprint(bp)
-            self.routes += 1 + len(getattr(bp, 'deferred_functions', []))
-        except AssertionError:
-            # 蓝图已注册（reload 场景），忽略重复注册
-            pass
-        except Exception as e:
-            print(f"[插件] 注册蓝图失败 {self.name}: {e}")
-
-    def register_page(self, title, icon="🧩", weight=0):
-        pid = f"plugin-{self.name}-{len(self.pages)}"
-        self.pages.append({"id": pid, "title": title, "icon": icon,
-                           "weight": weight, "plugin": self.name})
-        return pid
-
-    def register_card(self, page, title, icon="📋", weight=0, description="",
-                      rows=None, actions=None, fields=None, refresh=0):
-        self.cards.append({
-            "page": page, "title": title, "icon": icon, "weight": weight,
-            "description": description, "rows": rows or [], "actions": actions or [],
-            "fields": fields or [], "refresh": refresh,
-        })
-
-    # ── 配置持久化（每插件独立 config.json）──
-    def get_config(self):
-        path = os.path.join(self._m.plugins_dir, self.name, "config.json")
-        try:
-            if os.path.exists(path):
-                with open(path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-        except Exception:
-            pass
-        return {}
-
-    def save_config(self, data):
-        path = os.path.join(self._m.plugins_dir, self.name, "config.json")
-        try:
-            with open(path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            return True
-        except Exception as e:
-            print(f"[插件] 保存配置失败 {self.name}: {e}")
-            return False
-
-
-class PluginManager:
-    """插件加载器与运行时注册表"""
-
-    def __init__(self):
-        self.plugins_dir = PLUGINS_DIR
-        self.plugins = {}                       # name -> {meta, module, enabled}
-        self.on_message_callbacks = []          # [(name, cb)]
-        self.on_connect_callbacks = []
-        self.on_disconnect_callbacks = []
-        self._state_file = os.path.join(self.plugins_dir, '_state.json')
-        self._state = {}
-        self._load_state()
-
-    def _load_state(self):
-        try:
-            if os.path.exists(self._state_file):
-                with open(self._state_file, 'r', encoding='utf-8') as f:
-                    self._state = json.load(f)
-        except Exception:
-            self._state = {}
-
-    def _save_state(self):
-        try:
-            with open(self._state_file, 'w', encoding='utf-8') as f:
-                json.dump(self._state, f, ensure_ascii=False, indent=2)
-        except Exception:
-            pass
-
-    def is_enabled(self, name):
-        return not self._state.get('disabled', {}).get(name, False)
-
-    def set_enabled(self, name, enabled):
-        d = self._state.setdefault('disabled', {})
-        if enabled:
-            d.pop(name, None)
-        else:
-            d[name] = True
-        self._save_state()
-
-    def list_plugins(self):
-        return [info['meta'] for info in self.plugins.values()]
-
-    def startup_load(self):
-        try:
-            for name in sorted(os.listdir(self.plugins_dir)):
-                path = os.path.join(self.plugins_dir, name)
-                if not os.path.isdir(path) or name.startswith('_'):
-                    continue
-                if not os.path.exists(os.path.join(path, 'plugin.py')):
-                    continue
-                self._load_plugin(name, path, silent=True)
-        except Exception as e:
-            print(f"[插件] 启动加载失败: {e}")
-
-    def _clear_plugin_hooks(self, name):
-        self.on_message_callbacks = [c for c in self.on_message_callbacks if c[0] != name]
-        self.on_connect_callbacks = [c for c in self.on_connect_callbacks if c[0] != name]
-        self.on_disconnect_callbacks = [c for c in self.on_disconnect_callbacks if c[0] != name]
-
-    def _load_plugin(self, name, path, silent=False):
-        meta = {'name': name, 'version': '0.0.0', 'author': '', 'description': '',
-                'active': True, 'error': ''}
-        try:
-            json_path = os.path.join(path, 'plugin.json')
-            if os.path.exists(json_path):
-                with open(json_path, 'r', encoding='utf-8') as f:
-                    j = json.load(f)
-                for k in ('name', 'version', 'author', 'description'):
-                    if k in j:
-                        meta[k] = j[k]
-            enabled = self.is_enabled(name)
-            ctx = PluginContext(self, name)
-            py_path = os.path.join(path, 'plugin.py')
-            spec = importlib.util.spec_from_file_location(f"_plugin_{name}", py_path)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            if not hasattr(module, 'register'):
-                meta['error'] = '缺少 register(ctx) 函数'
-                meta['active'] = False
-            else:
-                self._clear_plugin_hooks(name)
-                module.register(ctx)
-                meta['message_handlers'] = ctx.message_handlers
-                meta['routes'] = ctx.routes
-                meta['pages'] = ctx.pages
-                meta['cards'] = ctx.cards
-                meta['active'] = enabled
-            self.plugins[name] = {'meta': meta, 'module': module, 'enabled': enabled}
-            return {'ok': True, 'plugin': name}
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            meta.update({'active': False, 'error': str(e)})
-            self.plugins[name] = {'meta': meta, 'module': None, 'enabled': False}
-            return {'ok': False, 'error': str(e)} if not silent else {'ok': True, 'plugin': name}
-
-    def reload(self, name=None):
-        if name:
-            if name not in self.plugins:
-                return {'ok': False, 'error': '插件不存在'}
-            path = os.path.join(self.plugins_dir, name)
-            self._clear_plugin_hooks(name)
-            return self._load_plugin(name, path)
-        self.on_message_callbacks = []
-        self.on_connect_callbacks = []
-        self.on_disconnect_callbacks = []
-        for nm in list(self.plugins.keys()):
-            self._load_plugin(nm, os.path.join(self.plugins_dir, nm), silent=True)
-        return {'ok': True, 'plugins': list(self.plugins.keys())}
-
-    def toggle(self, name, enabled):
-        if name not in self.plugins:
-            return {'ok': False, 'error': '插件不存在'}
-        self.set_enabled(name, enabled)
-        self.reload(name)
-        return {'ok': True, 'plugin': name, 'enabled': enabled}
-
-    def install(self, url):
-        name = url.rstrip('/').split('/')[-1]
-        if name.endswith('.git'):
-            name = name[:-4]
-        if not name or name.startswith('_'):
-            return {'ok': False, 'error': '无效的仓库地址'}
-        dest = os.path.join(self.plugins_dir, name)
-        if os.path.exists(dest):
-            return {'ok': False, 'error': f'插件目录已存在: {name}'}
-        try:
-            subprocess.run(['git', 'clone', '--depth', '1', url, dest],
-                           check=True, capture_output=True, text=True, timeout=120)
-        except Exception as e:
-            shutil.rmtree(dest, ignore_errors=True)
-            return {'ok': False, 'error': f'克隆失败: {e}'}
-        if not os.path.exists(os.path.join(dest, 'plugin.py')):
-            shutil.rmtree(dest, ignore_errors=True)
-            return {'ok': False, 'error': '仓库缺少 plugin.py'}
-        return self._load_plugin(name, dest)
-
-    def dispatch_message(self, msg):
-        """在消息接收循环中调用，分发给所有启用插件的 on_message 回调"""
-        for name, cb in list(self.on_message_callbacks):
-            info = self.plugins.get(name)
-            if not info or not info.get('enabled', True):
-                continue
-            try:
-                res = cb(msg)
-                if asyncio.iscoroutine(res):
-                    asyncio.ensure_future(res)
-            except Exception as e:
-                print(f"[插件] on_message 异常 ({name}): {e}")
-
-    def fire_event(self, event):
-        cbs = self.on_connect_callbacks if event == 'connect' else self.on_disconnect_callbacks
-        for name, cb in list(cbs):
-            try:
-                res = cb()
-                if asyncio.iscoroutine(res):
-                    asyncio.ensure_future(res)
-            except Exception as e:
-                print(f"[插件] {event} 事件异常 ({name}): {e}")
-
-
-plugin_manager = PluginManager()
-sender.plugin_manager = plugin_manager
-plugin_manager.startup_load()
-
-
 # 消息本地文件记录器（不限制数量，实时写入 logs/ 目录）
 # 开关状态从 config.json 的 MSG_LOG_ENABLED 读取，默认 True（开启）
 msg_logger = MessageLogger(enabled=settings.get('msg_log_enabled', True))
@@ -3397,56 +3097,6 @@ def api_reorder_auto_reply_rules():
         return jsonify({'ok': False, 'message': '无效索引'}), 400
 
 
-# ── 插件生态（v4.4）──
-@app.route('/api/plugins', methods=['GET'])
-def api_plugins():
-    try:
-        return jsonify({'ok': True, 'plugins': plugin_manager.list_plugins()})
-    except Exception as e:
-        return jsonify({'ok': False, 'message': str(e)}), 500
-
-
-@app.route('/api/plugins/install', methods=['POST'])
-def api_plugins_install():
-    try:
-        data = request.get_json(force=True) or {}
-        url = (data.get('url') or '').strip()
-        if not url:
-            return jsonify({'ok': False, 'error': '请输入 Git 仓库地址'}), 400
-        r = plugin_manager.install(url)
-        if r.get('ok'):
-            return jsonify(r)
-        return jsonify(r), 400
-    except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 500
-
-
-@app.route('/api/plugins/toggle', methods=['POST'])
-def api_plugins_toggle():
-    try:
-        data = request.get_json(force=True) or {}
-        name = data.get('name')
-        enabled = bool(data.get('enabled'))
-        if not name:
-            return jsonify({'ok': False, 'error': '缺少插件名称'}), 400
-        r = plugin_manager.toggle(name, enabled)
-        if r.get('ok'):
-            return jsonify(r)
-        return jsonify(r), 400
-    except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 500
-
-
-@app.route('/api/plugins/reload', methods=['POST'])
-def api_plugins_reload():
-    try:
-        data = request.get_json(force=True) or {}
-        r = plugin_manager.reload(data.get('name'))
-        return jsonify(r)
-    except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 500
-
-
 # ── 群聊管理 ──
 @app.route('/api/groups', methods=['GET'])
 def api_get_groups():
@@ -4006,7 +3656,7 @@ if __name__ == '__main__':
 
     local_ip = get_local_ip()
     print("=" * 60)
-    print("  元宝 Bot Web 控制台 - v5.2")
+    print("  元宝 Bot Web 控制台 - v5.4")
     print("=" * 60)
     print(f"  本地:  http://127.0.0.1:{PORT}")
     print(f"  网络:  http://{local_ip}:{PORT}")
