@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>元宝 Bot 控制台 v5.2</title>
+    <title>元宝 Bot 控制台 v5.4</title>
     <style>
         /* ═══════════════════════════════════════════
-           Apple Design System — 元宝 Bot Control v5.2
+           Apple Design System — 元宝 Bot Control v5.4
            ═══════════════════════════════════════════ */
 
         :root, [data-theme="light"] {
@@ -959,7 +959,7 @@
 <div class="app">
     <nav class="global-nav">
         <div class="nav-left">
-            <span class="nav-title">🤖 元宝 Bot v5.2</span>
+            <span class="nav-title">🤖 元宝 Bot v5.4</span>
         </div>
         <div class="nav-right">
             <button class="theme-toggle" id="themeToggle" title="切换外观" onclick="toggleTheme()">☀️</button>
@@ -1698,7 +1698,7 @@
 </div>
 
 <!-- ═══════════════════════════════════════════
-     JavaScript — 修复版 v5.2
+     JavaScript — 修复版 v5.4
      修复清单:
      1. r.status → r.ok（后端统一返回 ok 字段）
      2. API 路径全部对齐后端路由
@@ -3550,7 +3550,7 @@ function clearAllBadges() {
 }
 function exportMemberBadges() {
     const data = {
-        version: '5.2',
+        version: '5.4',
         exportedAt: new Date().toISOString(),
         badges: state.memberBadges,
         auth: state.memberAuth,
