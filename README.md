@@ -66,7 +66,9 @@
 ### 2️⃣ 下载项目
 
 使用一键安装命令：curl -sSL https://yuanbao-bot-client-web.pages.dev/install-cpp.sh | bash下载
+
 或者下载并解压项目安装包到设备存储目录
+
 或者依次下载各项目文件到设备存储目录
 
 ### 3️⃣ 安装依赖
